@@ -18,6 +18,15 @@ local autoSkill = false
 local targetKeyword = "curse"
 local currentTarget = nil
 
+-- Skill toggles
+local skillEnabled = { Z = true, X = true, C = true, V = true }
+local skillKeys = {
+    Z = Enum.KeyCode.Z,
+    X = Enum.KeyCode.X,
+    C = Enum.KeyCode.C,
+    V = Enum.KeyCode.V
+}
+
 --// Settings
 local attackDelay = 0.05
 local farmDistance = 6
@@ -72,32 +81,28 @@ local function useHaki()
     end)
 end
 
--- Auto Skill (Z X C V)
-local skillKeys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V}
-local skillIndex = 1
-
 local function pressKey(key)
     VirtualInputManager:SendKeyEvent(true, key, false, game)
     task.wait(0.05)
     VirtualInputManager:SendKeyEvent(false, key, false, game)
 end
 
+-- Auto Skill Loop
 task.spawn(function()
     while true do
         if autoSkill then
-            local key = skillKeys[skillIndex]
-            pressKey(key)
-
-            skillIndex += 1
-            if skillIndex > #skillKeys then
-                skillIndex = 1
+            for name, key in pairs(skillKeys) do
+                if skillEnabled[name] then
+                    pressKey(key)
+                    task.wait(0.15)
+                end
             end
         end
-        task.wait(0.4)
+        task.wait(0.3)
     end
 end)
 
--- เมื่อ respawn
+-- Respawn
 player.CharacterAdded:Connect(function()
     if autoHaki then
         task.wait(2)
@@ -129,8 +134,6 @@ task.spawn(function()
 
                         while autoFarm and npc.Parent and isAlive(npc) do
                             local targetPos = npcRoot.Position
-
-                            -- ยืนหลังมอน
                             local backDir = -npcRoot.CFrame.LookVector
                             local pos = targetPos + backDir * farmDistance + Vector3.new(0, 2, 0)
 
@@ -156,65 +159,73 @@ task.spawn(function()
 end)
 
 --// ================= UI =================
-
 pcall(function()
     CoreGui:FindFirstChild("GilsliferUI"):Destroy()
 end)
 
-local ScreenGui = Instance.new("ScreenGui")
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "GilsliferUI"
-ScreenGui.Parent = CoreGui
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 260, 0, 380)
-Main.Position = UDim2.new(0.5, -130, 0.5, -190)
-Main.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+-- Main
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 520, 0, 210)
+Main.Position = UDim2.new(0.5, -260, 0.5, -105)
+Main.BackgroundColor3 = Color3.fromRGB(28,28,28)
 Main.BorderSizePixel = 0
-Main.Parent = ScreenGui
 Main.Active = true
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0,10)
 
 -- Title
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 32)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -40, 0, 32)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
 Title.Text = "Gilslifer Hub"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 16
+Title.TextColor3 = Color3.new(1,1,1)
 Title.Font = Enum.Font.SourceSansBold
-Title.Parent = Main
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Minimize
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 26, 0, 20)
-MinBtn.Position = UDim2.new(1, -30, 0, 6)
-MinBtn.Text = "-"
-MinBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-MinBtn.TextColor3 = Color3.fromRGB(255,255,255)
-MinBtn.Font = Enum.Font.SourceSansBold
-MinBtn.TextSize = 18
-MinBtn.Parent = Main
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0,6)
+-- Hide Button
+local HideBtn = Instance.new("TextButton", Main)
+HideBtn.Size = UDim2.new(0, 26, 0, 20)
+HideBtn.Position = UDim2.new(1, -32, 0, 6)
+HideBtn.Text = "–"
+HideBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+HideBtn.TextColor3 = Color3.new(1,1,1)
+HideBtn.Font = Enum.Font.SourceSansBold
+HideBtn.TextSize = 18
+Instance.new("UICorner", HideBtn).CornerRadius = UDim.new(0,6)
+
+-- Small Open Button
+local OpenBtn = Instance.new("TextButton", ScreenGui)
+OpenBtn.Size = UDim2.new(0, 40, 0, 40)
+OpenBtn.Position = UDim2.new(0, 5, 0.5, -20)
+OpenBtn.Text = "≡"
+OpenBtn.Visible = false
+OpenBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+OpenBtn.TextColor3 = Color3.new(1,1,1)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.TextSize = 22
+Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0,10)
 
 -- Content
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, 0, 1, -32)
-Content.Position = UDim2.new(0, 0, 0, 32)
+local Content = Instance.new("Frame", Main)
+Content.Size = UDim2.new(1, -20, 1, -42)
+Content.Position = UDim2.new(0, 10, 0, 36)
 Content.BackgroundTransparency = 1
-Content.Parent = Main
 
 -- Input
-local Input = Instance.new("TextBox")
-Input.Size = UDim2.new(0, 220, 0, 32)
-Input.Position = UDim2.new(0.5, -110, 0, 6)
-Input.BackgroundColor3 = Color3.fromRGB(60,60,60)
+local Input = Instance.new("TextBox", Content)
+Input.Size = UDim2.new(0, 200, 0, 32)
+Input.Position = UDim2.new(0, 0, 0, 0)
 Input.Text = targetKeyword
 Input.PlaceholderText = "ชื่อมอน เช่น curse / bandit"
-Input.TextColor3 = Color3.fromRGB(255,255,255)
-Input.TextSize = 14
+Input.BackgroundColor3 = Color3.fromRGB(60,60,60)
+Input.TextColor3 = Color3.new(1,1,1)
 Input.Font = Enum.Font.SourceSans
-Input.Parent = Content
-Instance.new("UICorner", Input).CornerRadius = UDim.new(0, 8)
+Input.TextSize = 14
+Instance.new("UICorner", Input).CornerRadius = UDim.new(0,8)
 
 Input.FocusLost:Connect(function()
     if Input.Text ~= "" then
@@ -222,69 +233,69 @@ Input.FocusLost:Connect(function()
     end
 end)
 
--- Buttons
-local function makeBtn(text, y)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 200, 0, 36)
-    b.Position = UDim2.new(0.5, -100, 0, y)
+local function makeBtn(txt, x, y, w)
+    local b = Instance.new("TextButton", Content)
+    b.Size = UDim2.new(0, w, 0, 36)
+    b.Position = UDim2.new(0, x, 0, y)
+    b.Text = txt
     b.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    b.Text = text
-    b.TextColor3 = Color3.fromRGB(255,255,255)
+    b.TextColor3 = Color3.new(1,1,1)
     b.Font = Enum.Font.SourceSansBold
     b.TextSize = 14
-    b.Parent = Content
     Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
     return b
 end
 
-local HakiBtn  = makeBtn("Auto Haki: OFF", 48)
-local FarmBtn  = makeBtn("Auto Farm: OFF", 92)
-local SkillBtn = makeBtn("Auto Skill: OFF", 136)
+-- Left
+local HakiBtn  = makeBtn("Auto Haki: OFF", 0, 42, 200)
+local FarmBtn  = makeBtn("Auto Farm: OFF", 0, 84, 200)
+local SkillBtn = makeBtn("Auto Skill: OFF", 0, 126, 200)
 
--- Distance
-local DistLabel = Instance.new("TextLabel")
-DistLabel.Size = UDim2.new(0, 220, 0, 24)
-DistLabel.Position = UDim2.new(0.5, -110, 0, 180)
+-- Right
+local DistLabel = Instance.new("TextLabel", Content)
+DistLabel.Size = UDim2.new(0, 200, 0, 24)
+DistLabel.Position = UDim2.new(0, 230, 0, 0)
 DistLabel.BackgroundTransparency = 1
-DistLabel.Text = "Distance: " .. farmDistance
-DistLabel.TextColor3 = Color3.fromRGB(255,255,255)
-DistLabel.TextSize = 14
+DistLabel.Text = "Distance: "..farmDistance
+DistLabel.TextColor3 = Color3.new(1,1,1)
 DistLabel.Font = Enum.Font.SourceSans
-DistLabel.Parent = Content
+DistLabel.TextSize = 14
 
-local MinusBtn = Instance.new("TextButton")
-MinusBtn.Size = UDim2.new(0, 48, 0, 28)
-MinusBtn.Position = UDim2.new(0.5, -110, 0, 208)
-MinusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-MinusBtn.Text = "-"
-MinusBtn.TextColor3 = Color3.fromRGB(255,255,255)
-MinusBtn.Font = Enum.Font.SourceSansBold
-MinusBtn.TextSize = 18
-MinusBtn.Parent = Content
-Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0,8)
-
-local PlusBtn = Instance.new("TextButton")
-PlusBtn.Size = UDim2.new(0, 48, 0, 28)
-PlusBtn.Position = UDim2.new(0.5, 62, 0, 208)
-PlusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-PlusBtn.Text = "+"
-PlusBtn.TextColor3 = Color3.fromRGB(255,255,255)
-PlusBtn.Font = Enum.Font.SourceSansBold
-PlusBtn.TextSize = 18
-PlusBtn.Parent = Content
-Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0,8)
+local MinusBtn = makeBtn("-", 230, 28, 90)
+local PlusBtn  = makeBtn("+", 340, 28, 90)
 
 MinusBtn.MouseButton1Click:Connect(function()
     farmDistance = math.max(1, farmDistance - 1)
-    DistLabel.Text = "Distance: " .. farmDistance
+    DistLabel.Text = "Distance: "..farmDistance
 end)
 
 PlusBtn.MouseButton1Click:Connect(function()
     farmDistance = math.min(30, farmDistance + 1)
-    DistLabel.Text = "Distance: " .. farmDistance
+    DistLabel.Text = "Distance: "..farmDistance
 end)
 
--- Button Logic
+-- Skill toggles
+local function makeToggleSkill(name, x, y)
+    local b = makeBtn(name..": ON", x, y, 90)
+    b.BackgroundColor3 = Color3.fromRGB(0,120,0)
+    b.MouseButton1Click:Connect(function()
+        skillEnabled[name] = not skillEnabled[name]
+        if skillEnabled[name] then
+            b.Text = name..": ON"
+            b.BackgroundColor3 = Color3.fromRGB(0,120,0)
+        else
+            b.Text = name..": OFF"
+            b.BackgroundColor3 = Color3.fromRGB(120,0,0)
+        end
+    end)
+end
+
+makeToggleSkill("Z", 230, 76)
+makeToggleSkill("X", 340, 76)
+makeToggleSkill("C", 230, 120)
+makeToggleSkill("V", 340, 120)
+
+-- Buttons logic
 HakiBtn.MouseButton1Click:Connect(function()
     autoHaki = not autoHaki
     if autoHaki then
@@ -320,24 +331,18 @@ SkillBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Minimize
-local minimized = false
-local normalSize = Main.Size
-
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        Content.Visible = false
-        Main.Size = UDim2.new(normalSize.X.Scale, normalSize.X.Offset, 0, 32)
-        MinBtn.Text = "+"
-    else
-        Content.Visible = true
-        Main.Size = normalSize
-        MinBtn.Text = "-"
-    end
+-- Hide / Show
+HideBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    OpenBtn.Visible = true
 end)
 
--- Drag UI
+OpenBtn.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    OpenBtn.Visible = false
+end)
+
+-- Drag
 local dragging = false
 local dragStart, startPos
 
