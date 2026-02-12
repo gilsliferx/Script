@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 
@@ -13,7 +14,9 @@ local RequestHit = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("
 --// State
 local autoHaki = false
 local autoFarm = false
+local autoSkill = false
 local targetKeyword = "curse"
+local currentTarget = nil
 
 --// Settings
 local attackDelay = 0.05
@@ -33,7 +36,7 @@ local function isAlive(model)
     return hum and hum.Health > 0
 end
 
--- หา NPC ตาม keyword (curse, bandit, etc.)
+-- หาเป้าหมายตาม keyword
 local function getTargets()
     local list = {}
     local npcs = workspace:FindFirstChild("NPCs")
@@ -50,16 +53,15 @@ local function getTargets()
             end
         end
     end
-
     return list
 end
 
--- ล็อกหน้ามองมอน (ก้ม/เงยจริง)
-local function faceTarget(root, targetRoot)
+-- หันหน้าเข้าหามอนแบบไม่ก้ม/เงย
+local function faceTargetFlat(root, targetRoot)
     if root and targetRoot then
         local pos = root.Position
         local tpos = targetRoot.Position
-        root.CFrame = CFrame.lookAt(pos, tpos)
+        root.CFrame = CFrame.new(pos, Vector3.new(tpos.X, pos.Y, tpos.Z))
     end
 end
 
@@ -70,7 +72,32 @@ local function useHaki()
     end)
 end
 
--- เปิด Haki ตอนเกิดใหม่
+-- Auto Skill (Z X C V)
+local skillKeys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V}
+local skillIndex = 1
+
+local function pressKey(key)
+    VirtualInputManager:SendKeyEvent(true, key, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, key, false, game)
+end
+
+task.spawn(function()
+    while true do
+        if autoSkill then
+            local key = skillKeys[skillIndex]
+            pressKey(key)
+
+            skillIndex += 1
+            if skillIndex > #skillKeys then
+                skillIndex = 1
+            end
+        end
+        task.wait(0.4)
+    end
+end)
+
+-- เมื่อ respawn
 player.CharacterAdded:Connect(function()
     if autoHaki then
         task.wait(2)
@@ -85,29 +112,40 @@ task.spawn(function()
             local char = getCharacter()
             local root = getRoot(char)
 
-            local targets = getTargets()
+            local targets = {}
+            if currentTarget and currentTarget.Parent and isAlive(currentTarget) then
+                table.insert(targets, currentTarget)
+            else
+                currentTarget = nil
+                targets = getTargets()
+            end
+
             for _, npc in ipairs(targets) do
                 if not autoFarm then break end
                 if npc and npc.Parent and isAlive(npc) then
                     local npcRoot = npc:FindFirstChild("HumanoidRootPart")
                     if npcRoot then
-                        while autoFarm and npc.Parent and isAlive(npc) do
-                            -- คำนวณตำแหน่งยืนห่างจากมอน
-                            local dir = (root.Position - npcRoot.Position)
-                            if dir.Magnitude < 0.1 then
-                                dir = Vector3.new(0, 0, 1)
-                            end
-                            dir = dir.Unit
+                        currentTarget = npc
 
-                            local pos = npcRoot.Position + dir * farmDistance + Vector3.new(0, 2, 0)
+                        while autoFarm and npc.Parent and isAlive(npc) do
+                            local targetPos = npcRoot.Position
+
+                            -- ยืนหลังมอน
+                            local backDir = -npcRoot.CFrame.LookVector
+                            local pos = targetPos + backDir * farmDistance + Vector3.new(0, 2, 0)
+
                             char:PivotTo(CFrame.new(pos))
-                            faceTarget(root, npcRoot)
+                            faceTargetFlat(root, npcRoot)
 
                             pcall(function()
                                 RequestHit:FireServer()
                             end)
 
                             task.wait(attackDelay)
+                        end
+
+                        if not isAlive(npc) then
+                            currentTarget = nil
                         end
                     end
                 end
@@ -128,8 +166,8 @@ ScreenGui.Name = "GilsliferUI"
 ScreenGui.Parent = CoreGui
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 240, 0, 280)
-Main.Position = UDim2.new(0.5, -120, 0.5, -140)
+Main.Size = UDim2.new(0, 260, 0, 380)
+Main.Position = UDim2.new(0.5, -130, 0.5, -190)
 Main.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 Main.BorderSizePixel = 0
 Main.Parent = ScreenGui
@@ -140,10 +178,9 @@ Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 32)
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.BorderSizePixel = 0
-Title.Text = "Gilslifer"
+Title.Text = "Gilslifer Hub"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 15
+Title.TextSize = 16
 Title.Font = Enum.Font.SourceSansBold
 Title.Parent = Main
 
@@ -151,13 +188,13 @@ Title.Parent = Main
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 26, 0, 20)
 MinBtn.Position = UDim2.new(1, -30, 0, 6)
-MinBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 MinBtn.Text = "-"
-MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinBtn.TextSize = 16
+MinBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+MinBtn.TextColor3 = Color3.fromRGB(255,255,255)
 MinBtn.Font = Enum.Font.SourceSansBold
+MinBtn.TextSize = 18
 MinBtn.Parent = Main
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0,6)
 
 -- Content
 local Content = Instance.new("Frame")
@@ -166,27 +203,13 @@ Content.Position = UDim2.new(0, 0, 0, 32)
 Content.BackgroundTransparency = 1
 Content.Parent = Main
 
-local function makeBtn(text, y)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 200, 0, 34)
-    b.Position = UDim2.new(0.5, -100, 0, y)
-    b.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    b.Text = text
-    b.TextColor3 = Color3.fromRGB(255, 255, 255)
-    b.TextSize = 14
-    b.Font = Enum.Font.SourceSansBold
-    b.Parent = Content
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-    return b
-end
-
--- Input เลือกมอน
+-- Input
 local Input = Instance.new("TextBox")
-Input.Size = UDim2.new(0, 200, 0, 32)
-Input.Position = UDim2.new(0.5, -100, 0, 12)
-Input.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Input.Size = UDim2.new(0, 220, 0, 32)
+Input.Position = UDim2.new(0.5, -110, 0, 6)
+Input.BackgroundColor3 = Color3.fromRGB(60,60,60)
 Input.Text = targetKeyword
-Input.PlaceholderText = "พิมพ์ชื่อมอน เช่น curse / bandit"
+Input.PlaceholderText = "ชื่อมอน เช่น curse / bandit"
 Input.TextColor3 = Color3.fromRGB(255,255,255)
 Input.TextSize = 14
 Input.Font = Enum.Font.SourceSans
@@ -199,66 +222,78 @@ Input.FocusLost:Connect(function()
     end
 end)
 
-local HakiBtn  = makeBtn("Auto Haki: OFF", 56)
-local FarmBtn  = makeBtn("Auto Farm: OFF", 100)
+-- Buttons
+local function makeBtn(text, y)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, 200, 0, 36)
+    b.Position = UDim2.new(0.5, -100, 0, y)
+    b.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    b.Text = text
+    b.TextColor3 = Color3.fromRGB(255,255,255)
+    b.Font = Enum.Font.SourceSansBold
+    b.TextSize = 14
+    b.Parent = Content
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
+    return b
+end
 
--- Distance label
+local HakiBtn  = makeBtn("Auto Haki: OFF", 48)
+local FarmBtn  = makeBtn("Auto Farm: OFF", 92)
+local SkillBtn = makeBtn("Auto Skill: OFF", 136)
+
+-- Distance
 local DistLabel = Instance.new("TextLabel")
-DistLabel.Size = UDim2.new(0, 200, 0, 24)
-DistLabel.Position = UDim2.new(0.5, -100, 0, 144)
+DistLabel.Size = UDim2.new(0, 220, 0, 24)
+DistLabel.Position = UDim2.new(0.5, -110, 0, 180)
 DistLabel.BackgroundTransparency = 1
 DistLabel.Text = "Distance: " .. farmDistance
 DistLabel.TextColor3 = Color3.fromRGB(255,255,255)
 DistLabel.TextSize = 14
-DistLabel.Font = Enum.Font.SourceSansBold
+DistLabel.Font = Enum.Font.SourceSans
 DistLabel.Parent = Content
 
 local MinusBtn = Instance.new("TextButton")
-MinusBtn.Size = UDim2.new(0, 40, 0, 28)
-MinusBtn.Position = UDim2.new(0.5, -100, 0, 172)
+MinusBtn.Size = UDim2.new(0, 48, 0, 28)
+MinusBtn.Position = UDim2.new(0.5, -110, 0, 208)
 MinusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 MinusBtn.Text = "-"
 MinusBtn.TextColor3 = Color3.fromRGB(255,255,255)
-MinusBtn.TextSize = 18
 MinusBtn.Font = Enum.Font.SourceSansBold
+MinusBtn.TextSize = 18
 MinusBtn.Parent = Content
-Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0,6)
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0,8)
 
 local PlusBtn = Instance.new("TextButton")
-PlusBtn.Size = UDim2.new(0, 40, 0, 28)
-PlusBtn.Position = UDim2.new(0.5, 60, 0, 172)
+PlusBtn.Size = UDim2.new(0, 48, 0, 28)
+PlusBtn.Position = UDim2.new(0.5, 62, 0, 208)
 PlusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 PlusBtn.Text = "+"
 PlusBtn.TextColor3 = Color3.fromRGB(255,255,255)
-PlusBtn.TextSize = 18
 PlusBtn.Font = Enum.Font.SourceSansBold
+PlusBtn.TextSize = 18
 PlusBtn.Parent = Content
-Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0,6)
-
-local function updateDistLabel()
-    DistLabel.Text = "Distance: " .. farmDistance
-end
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0,8)
 
 MinusBtn.MouseButton1Click:Connect(function()
-    farmDistance = math.max(2, farmDistance - 1)
-    updateDistLabel()
+    farmDistance = math.max(1, farmDistance - 1)
+    DistLabel.Text = "Distance: " .. farmDistance
 end)
 
 PlusBtn.MouseButton1Click:Connect(function()
     farmDistance = math.min(30, farmDistance + 1)
-    updateDistLabel()
+    DistLabel.Text = "Distance: " .. farmDistance
 end)
 
--- Buttons logic
+-- Button Logic
 HakiBtn.MouseButton1Click:Connect(function()
     autoHaki = not autoHaki
     if autoHaki then
         HakiBtn.Text = "Auto Haki: ON"
-        HakiBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
+        HakiBtn.BackgroundColor3 = Color3.fromRGB(0,120,0)
         useHaki()
     else
         HakiBtn.Text = "Auto Haki: OFF"
-        HakiBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        HakiBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     end
 end)
 
@@ -266,10 +301,22 @@ FarmBtn.MouseButton1Click:Connect(function()
     autoFarm = not autoFarm
     if autoFarm then
         FarmBtn.Text = "Auto Farm: ON"
-        FarmBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
+        FarmBtn.BackgroundColor3 = Color3.fromRGB(0,80,120)
     else
         FarmBtn.Text = "Auto Farm: OFF"
-        FarmBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        FarmBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        currentTarget = nil
+    end
+end)
+
+SkillBtn.MouseButton1Click:Connect(function()
+    autoSkill = not autoSkill
+    if autoSkill then
+        SkillBtn.Text = "Auto Skill: ON"
+        SkillBtn.BackgroundColor3 = Color3.fromRGB(120,80,0)
+    else
+        SkillBtn.Text = "Auto Skill: OFF"
+        SkillBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     end
 end)
 
@@ -290,17 +337,15 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Drag UI (เมาส์ + ทัช)
+-- Drag UI
 local dragging = false
-local dragStart
-local startPos
+local dragStart, startPos
 
 Title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = Main.Position
-
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
