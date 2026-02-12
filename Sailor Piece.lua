@@ -12,11 +12,12 @@ local RequestHit = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("
 
 --// State
 local autoHaki = false
-local autoCurse = false
+local autoFarm = false
+local targetKeyword = "curse"
 
 --// Settings
-local attackDelay = 0.05      -- ความเร็วตี (ใช้ใน Auto Curse)
-local attackHeight = 6        -- ความสูงเหนือหัวมอน (ปรับได้จาก UI)
+local attackDelay = 0.05
+local farmDistance = 6
 
 --// Utils
 local function getCharacter()
@@ -32,27 +33,33 @@ local function isAlive(model)
     return hum and hum.Health > 0
 end
 
-local function getAllCurses()
+-- หา NPC ตาม keyword (curse, bandit, etc.)
+local function getTargets()
     local list = {}
-    local npcsFolder = workspace:FindFirstChild("NPCs")
-    if not npcsFolder then return list end
+    local npcs = workspace:FindFirstChild("NPCs")
+    if not npcs then return list end
 
-    for _, npc in ipairs(npcsFolder:GetChildren()) do
-        if npc:IsA("Model") and npc.Name:lower():find("curse") then
-            if isAlive(npc) then
-                table.insert(list, npc)
+    for _, obj in ipairs(npcs:GetDescendants()) do
+        if obj:IsA("Model") then
+            if string.find(string.lower(obj.Name), string.lower(targetKeyword)) then
+                local hrp = obj:FindFirstChild("HumanoidRootPart")
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    table.insert(list, obj)
+                end
             end
         end
     end
+
     return list
 end
 
--- ฟังก์ชันล็อคหน้าเข้าหาเป้าหมาย
+-- ล็อกหน้ามองมอน (ก้ม/เงยจริง)
 local function faceTarget(root, targetRoot)
     if root and targetRoot then
         local pos = root.Position
         local tpos = targetRoot.Position
-        root.CFrame = CFrame.new(pos, Vector3.new(tpos.X, pos.Y, tpos.Z))
+        root.CFrame = CFrame.lookAt(pos, tpos)
     end
 end
 
@@ -63,7 +70,7 @@ local function useHaki()
     end)
 end
 
--- เปิด Haki ตอนเกิดใหม่ (ถ้าเปิด Auto Haki)
+-- เปิด Haki ตอนเกิดใหม่
 player.CharacterAdded:Connect(function()
     if autoHaki then
         task.wait(2)
@@ -71,31 +78,35 @@ player.CharacterAdded:Connect(function()
     end
 end)
 
--- Auto Curse loop (ฟาร์มจากบนหัว + ล็อคหน้า)
+--// Auto Farm Loop
 task.spawn(function()
     while true do
-        if autoCurse then
+        if autoFarm then
             local char = getCharacter()
             local root = getRoot(char)
 
-            local curses = getAllCurses()
-            for _, npc in ipairs(curses) do
-                if not autoCurse then break end
+            local targets = getTargets()
+            for _, npc in ipairs(targets) do
+                if not autoFarm then break end
                 if npc and npc.Parent and isAlive(npc) then
-                    local npcRoot = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("RootPart")
+                    local npcRoot = npc:FindFirstChild("HumanoidRootPart")
                     if npcRoot then
-                        -- วาร์ปไปอยู่เหนือหัวมอน
-                        root.CFrame = npcRoot.CFrame * CFrame.new(0, attackHeight, 0)
-                        faceTarget(root, npcRoot)
+                        while autoFarm and npc.Parent and isAlive(npc) do
+                            -- คำนวณตำแหน่งยืนห่างจากมอน
+                            local dir = (root.Position - npcRoot.Position)
+                            if dir.Magnitude < 0.1 then
+                                dir = Vector3.new(0, 0, 1)
+                            end
+                            dir = dir.Unit
 
-                        -- ตีจนกว่าจะตาย
-                        while autoCurse and npc.Parent and isAlive(npc) do
-                            root.CFrame = npcRoot.CFrame * CFrame.new(0, attackHeight, 0)
+                            local pos = npcRoot.Position + dir * farmDistance + Vector3.new(0, 2, 0)
+                            char:PivotTo(CFrame.new(pos))
                             faceTarget(root, npcRoot)
 
                             pcall(function()
                                 RequestHit:FireServer()
                             end)
+
                             task.wait(attackDelay)
                         end
                     end
@@ -106,7 +117,8 @@ task.spawn(function()
     end
 end)
 
---// UI
+--// ================= UI =================
+
 pcall(function()
     CoreGui:FindFirstChild("GilsliferUI"):Destroy()
 end)
@@ -116,16 +128,15 @@ ScreenGui.Name = "GilsliferUI"
 ScreenGui.Parent = CoreGui
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 220, 0, 230)
-Main.Position = UDim2.new(0.5, -110, 0.5, -115)
+Main.Size = UDim2.new(0, 240, 0, 280)
+Main.Position = UDim2.new(0.5, -120, 0.5, -140)
 Main.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 Main.BorderSizePixel = 0
 Main.Parent = ScreenGui
 Main.Active = true
-
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
--- Title bar
+-- Title
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 32)
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -155,11 +166,10 @@ Content.Position = UDim2.new(0, 0, 0, 32)
 Content.BackgroundTransparency = 1
 Content.Parent = Main
 
--- Button factory
 local function makeBtn(text, y)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 180, 0, 34)
-    b.Position = UDim2.new(0.5, -90, 0, y)
+    b.Size = UDim2.new(0, 200, 0, 34)
+    b.Position = UDim2.new(0.5, -100, 0, y)
     b.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     b.Text = text
     b.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -170,24 +180,42 @@ local function makeBtn(text, y)
     return b
 end
 
-local HakiBtn  = makeBtn("Auto Haki: OFF", 12)
-local CurseBtn = makeBtn("Auto Curse: OFF", 56)
+-- Input เลือกมอน
+local Input = Instance.new("TextBox")
+Input.Size = UDim2.new(0, 200, 0, 32)
+Input.Position = UDim2.new(0.5, -100, 0, 12)
+Input.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Input.Text = targetKeyword
+Input.PlaceholderText = "พิมพ์ชื่อมอน เช่น curse / bandit"
+Input.TextColor3 = Color3.fromRGB(255,255,255)
+Input.TextSize = 14
+Input.Font = Enum.Font.SourceSans
+Input.Parent = Content
+Instance.new("UICorner", Input).CornerRadius = UDim.new(0, 8)
 
--- Height label
+Input.FocusLost:Connect(function()
+    if Input.Text ~= "" then
+        targetKeyword = Input.Text
+    end
+end)
+
+local HakiBtn  = makeBtn("Auto Haki: OFF", 56)
+local FarmBtn  = makeBtn("Auto Farm: OFF", 100)
+
+-- Distance label
 local DistLabel = Instance.new("TextLabel")
-DistLabel.Size = UDim2.new(0, 180, 0, 24)
-DistLabel.Position = UDim2.new(0.5, -90, 0, 100)
+DistLabel.Size = UDim2.new(0, 200, 0, 24)
+DistLabel.Position = UDim2.new(0.5, -100, 0, 144)
 DistLabel.BackgroundTransparency = 1
-DistLabel.Text = "Height: " .. attackHeight
+DistLabel.Text = "Distance: " .. farmDistance
 DistLabel.TextColor3 = Color3.fromRGB(255,255,255)
 DistLabel.TextSize = 14
 DistLabel.Font = Enum.Font.SourceSansBold
 DistLabel.Parent = Content
 
--- Minus button
 local MinusBtn = Instance.new("TextButton")
 MinusBtn.Size = UDim2.new(0, 40, 0, 28)
-MinusBtn.Position = UDim2.new(0.5, -90, 0, 130)
+MinusBtn.Position = UDim2.new(0.5, -100, 0, 172)
 MinusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 MinusBtn.Text = "-"
 MinusBtn.TextColor3 = Color3.fromRGB(255,255,255)
@@ -196,10 +224,9 @@ MinusBtn.Font = Enum.Font.SourceSansBold
 MinusBtn.Parent = Content
 Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0,6)
 
--- Plus button
 local PlusBtn = Instance.new("TextButton")
 PlusBtn.Size = UDim2.new(0, 40, 0, 28)
-PlusBtn.Position = UDim2.new(0.5, 50, 0, 130)
+PlusBtn.Position = UDim2.new(0.5, 60, 0, 172)
 PlusBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 PlusBtn.Text = "+"
 PlusBtn.TextColor3 = Color3.fromRGB(255,255,255)
@@ -209,20 +236,20 @@ PlusBtn.Parent = Content
 Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0,6)
 
 local function updateDistLabel()
-    DistLabel.Text = "Height: " .. attackHeight
+    DistLabel.Text = "Distance: " .. farmDistance
 end
 
 MinusBtn.MouseButton1Click:Connect(function()
-    attackHeight = math.max(2, attackHeight - 1)
+    farmDistance = math.max(2, farmDistance - 1)
     updateDistLabel()
 end)
 
 PlusBtn.MouseButton1Click:Connect(function()
-    attackHeight = math.min(20, attackHeight + 1)
+    farmDistance = math.min(30, farmDistance + 1)
     updateDistLabel()
 end)
 
--- Button logic
+-- Buttons logic
 HakiBtn.MouseButton1Click:Connect(function()
     autoHaki = not autoHaki
     if autoHaki then
@@ -235,14 +262,14 @@ HakiBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-CurseBtn.MouseButton1Click:Connect(function()
-    autoCurse = not autoCurse
-    if autoCurse then
-        CurseBtn.Text = "Auto Curse: ON"
-        CurseBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
+FarmBtn.MouseButton1Click:Connect(function()
+    autoFarm = not autoFarm
+    if autoFarm then
+        FarmBtn.Text = "Auto Farm: ON"
+        FarmBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
     else
-        CurseBtn.Text = "Auto Curse: OFF"
-        CurseBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        FarmBtn.Text = "Auto Farm: OFF"
+        FarmBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     end
 end)
 
@@ -263,7 +290,7 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Drag (เมาส์ + ทัช)
+-- Drag UI (เมาส์ + ทัช)
 local dragging = false
 local dragStart
 local startPos
