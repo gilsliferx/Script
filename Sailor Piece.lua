@@ -4,15 +4,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
 
+--// ================= Anti AFK =================
+player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
 --// Remotes
-local HakiRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HakiRemote")
 local RequestHit = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
 
 --// State
-local autoHaki = false
 local autoFarm = false
 local autoSkill = false
 local targetKeyword = "curse"
@@ -45,7 +51,6 @@ local function isAlive(model)
     return hum and hum.Health > 0
 end
 
--- หาเป้าหมายตาม keyword
 local function getTargets()
     local list = {}
     local npcs = workspace:FindFirstChild("NPCs")
@@ -65,20 +70,12 @@ local function getTargets()
     return list
 end
 
--- หันหน้าเข้าหามอนแบบไม่ก้ม/เงย
 local function faceTargetFlat(root, targetRoot)
     if root and targetRoot then
         local pos = root.Position
         local tpos = targetRoot.Position
         root.CFrame = CFrame.new(pos, Vector3.new(tpos.X, pos.Y, tpos.Z))
     end
-end
-
---// Actions
-local function useHaki()
-    pcall(function()
-        HakiRemote:FireServer("Toggle")
-    end)
 end
 
 local function pressKey(key)
@@ -102,15 +99,7 @@ task.spawn(function()
     end
 end)
 
--- Respawn
-player.CharacterAdded:Connect(function()
-    if autoHaki then
-        task.wait(2)
-        useHaki()
-    end
-end)
-
---// Auto Farm Loop
+-- Auto Farm Loop
 task.spawn(function()
     while true do
         if autoFarm then
@@ -247,7 +236,6 @@ local function makeBtn(txt, x, y, w)
 end
 
 -- Left
-local HakiBtn  = makeBtn("Auto Haki: OFF", 0, 42, 200)
 local FarmBtn  = makeBtn("Auto Farm: OFF", 0, 84, 200)
 local SkillBtn = makeBtn("Auto Skill: OFF", 0, 126, 200)
 
@@ -296,17 +284,6 @@ makeToggleSkill("C", 230, 120)
 makeToggleSkill("V", 340, 120)
 
 -- Buttons logic
-HakiBtn.MouseButton1Click:Connect(function()
-    autoHaki = not autoHaki
-    if autoHaki then
-        HakiBtn.Text = "Auto Haki: ON"
-        HakiBtn.BackgroundColor3 = Color3.fromRGB(0,120,0)
-        useHaki()
-    else
-        HakiBtn.Text = "Auto Haki: OFF"
-        HakiBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    end
-end)
 
 FarmBtn.MouseButton1Click:Connect(function()
     autoFarm = not autoFarm
